@@ -1789,7 +1789,28 @@ defineCommand('voicemove', async (msg) => { const [_, fromId, toId] = msg.conten
 defineCommand('voicekick', async (msg) => { let m = msg.mentions.members.first(); const idArg = msg.content.split(/\s+/)[1]; if (!m && idArg) { const uid = idArg.replace(/[^0-9]/g, ''); if (uid) m = await msg.guild.members.fetch(uid).catch(()=>null); } if (!m||!m.voice.channelId) return void msg.channel.send('Veuillez mentionner un utilisateur.'); const chId = m.voice.channelId; await m.voice.disconnect().catch(()=>{}); const ch = chId ? msg.guild.channels.cache.get(chId) : null; await msg.channel.send(`${m.user.username} a été déconnecté de la vocal ${ch ? ch.toString() : ''}`); });
 defineCommand('bringall', async (msg) => { let to = msg.mentions.channels.first(); if (!to) { const idArg = msg.content.split(/\s+/)[1]; const chId = idArg ? idArg.replace(/[^0-9]/g, '') : ''; if (chId) to = msg.guild.channels.cache.get(chId) || null; } if (!to || to.type !== 2) return void msg.channel.send('Mentionne un salon vocal ou fournis un ID.'); const members = (await msg.guild.members.fetch()).filter(m=>m.voice.channelId); for (const m of members.values()) { try { await m.voice.setChannel(to); } catch {} } await msg.channel.send(`Tous les utilisateurs ont bien été déplacés vers ${to}`); });
 defineCommand('slowmode', async (msg) => { const parts = msg.content.split(/\s+/).slice(1); const dur = (parts[0] || '').trim(); const m = dur.match(/^(\d+)([hms])$/i); if (!m) return void msg.channel.send('Usage: +slowmode <durée><s/m/h> [#salon]'); const n = parseInt(m[1], 10); const unit = m[2].toLowerCase(); let secs = n; if (unit === 'm') secs = n * 60; else if (unit === 'h') secs = n * 3600; secs = Math.max(0, Math.min(21600, secs)); const ch = msg.mentions.channels.first() || msg.channel; await ch.setRateLimitPerUser(secs).catch(()=>{}); await msg.channel.send(`Le slowmode a été activé dans ${ch} pour ${n}${unit}`); });
-defineCommand('rename', async (msg) => { const name = msg.content.split(/\\s+/).slice(1).join(' '); if (!name) return void msg.channel.send('Usage: +rename <nom>'); await msg.guild.setName(name).catch(()=>{}); await msg.react('✅'); });
+defineCommand('rename', async (msg) => { 
+    const name = msg.content.split(/\s+/).slice(1).join(' '); 
+    if (!name) return void msg.channel.send('Usage: +rename <nom>'); 
+    
+    // Vérifier que c'est un ticket (salon avec un nom qui contient "ticket" ou dans une catégorie de tickets)
+    const channel = msg.channel;
+    const isTicket = channel.name.toLowerCase().includes('ticket') || 
+                    (channel.parent && channel.parent.name.toLowerCase().includes('ticket')) ||
+                    channel.name.toLowerCase().includes('support') ||
+                    (channel.parent && channel.parent.name.toLowerCase().includes('support'));
+    
+    if (!isTicket) {
+        return void msg.channel.send('Cette commande ne peut être utilisée que dans un ticket.');
+    }
+    
+    try {
+        await channel.setName(name);
+        await msg.channel.send(`Le ticket a été renommé par ${name}`);
+    } catch (error) {
+        await msg.channel.send('Impossible de renommer le ticket.');
+    }
+});
 
 defineCommand('perms', async (msg) => { const cfg = getGuildConfig(msg.guild.id); const L = (n) => (cfg.settings.permLevels && cfg.settings.permLevels[n]) || []; const fmt = (arr) => arr.length ? arr.map(id=>`<@&${id}>`).join(', ') : 'Aucune'; const embed = new EmbedBuilder().setTitle('Permissions du serveur').setColor(0xFF0000).setDescription(['Perm 1',fmt(L('1')),'Perm 2',fmt(L('2')),'Perm 3',fmt(L('3')),'Perm 4',fmt(L('4')),'Perm 5',fmt(L('5')),'Perm 6',fmt(L('6')),'Perm 9',fmt(L('9'))].join('\n')).setFooter({ text: 'ζ͜͡Nexus Support' }); await msg.channel.send({ embeds: [embed] }); });
 defineCommand('set perm', async (msg) => { const args = msg.content.split(/\s+/).slice(2); const level = args[0]; const role = msg.mentions.roles.first(); if (!level||!role) return void msg.channel.send('Usage: +set perm <niveau(1-9)> <@rôle>'); if (!/^([1-6]|9)$/.test(level)) return void msg.channel.send('Niveau invalide.'); const cfg = getGuildConfig(msg.guild.id); cfg.settings.permLevels = cfg.settings.permLevels || { '1': [], '2': [], '3': [], '4': [], '5': [], '6': [], '9': [] }; const arr = cfg.settings.permLevels[level]; if (!arr.includes(role.id)) arr.push(role.id); saveGuildConfig(msg.guild.id, cfg); await msg.channel.send(`La permission ${level} a été ajoutée à 1 rôle`); });
