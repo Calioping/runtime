@@ -450,6 +450,7 @@ function buildHelpMenu(userId) {
 }
 
 defineCommand('help', async (msg) => {
+    if (!requireOwner(msg)) return;
     const embed = buildHelpEmbed('overview', msg.guild.id);
     const menu = buildHelpMenu(msg.author.id);
     const sent = await msg.channel.send({ embeds: [embed], components: [menu] });
