@@ -3008,7 +3008,125 @@ defineCommand('del', async (msg) => {
 defineCommand('close', async (msg) => { await msg.channel.send('Fermeture du ticket en cours d\'implémentation.'); });
 defineCommand('tempvoc', async (msg) => { if (!requireOwner(msg)) return; const state = { step: 'start', voiceChannelId: null, categoryId: null, namePattern: '<user>.dpz' }; function embedStart(){ return new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Choisissez une action dans le menu ci-dessous.').setColor(0xFF0000).setFooter({ text: 'ζ͜͡Nexus Support' }); } function embedPickVoice(){ return new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Veuillez choisir un salon vocal').setColor(0xFF0000).setFooter({ text: 'ζ͜͡Nexus Support' }); } function embedSummary(){ const ch = state.voiceChannelId ? (msg.guild.channels.cache.get(state.voiceChannelId)||null) : null; const cat = state.categoryId ? (msg.guild.channels.cache.get(state.categoryId)||null) : null; return new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setColor(0xFF0000).setDescription(['Vocal 1',`Salon: ${ch?ch.toString():'Aucun'}`,`Catégorie: ${cat?('#'+cat.name):'Aucun'}`,state.namePattern].join('\n')).setFooter({ text: 'ζ͜͡Nexus Support' }); } function menuStart(id){ return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('Sélectionner').addOptions({ label: 'Ajouter un salon', value: 'add' },{ label: 'Supprimer un salon', value: 'del' })); } function menuVoices(id){ const opts = []; for (const ch of msg.guild.channels.cache.values()){ if (ch.type===2) opts.push({ label: ch.name, value: ch.id }); } return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('Choisir un salon vocal').addOptions(opts.slice(0,25))); } function menuCategories(id){ const opts = []; for (const ch of msg.guild.channels.cache.values()){ if (ch.type===4) opts.push({ label: ch.name, value: ch.id }); } return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('Choisir une catégorie').addOptions(opts.slice(0,25))); } async function askName(){ const q = await msg.channel.send('Quel sera le nom des vocaux du serveur ? (<user> sera remplacé par le pseudo)'); const filter=(m)=>m.author.id===msg.author.id&&m.channelId===msg.channelId; const col=await msg.channel.awaitMessages({ filter, max:1, time:60000 }); const a=col.first(); if(!a){ try{await q.delete().catch(()=>{});}catch{} return null;} const val=a.content.trim(); try{await a.delete().catch(()=>{});}catch{} try{await q.delete().catch(()=>{});}catch{} return val; } const id1=`tempvoc:${msg.id}:${Date.now()}`; let sent=await msg.channel.send({ embeds:[embedStart()], components:[menuStart(id1)] }); const col=sent.createMessageComponentCollector({ time:10*60*1000 }); col.on('collect', async (i)=>{ if(i.user.id!==msg.author.id) return i.reply({ content:'Seul l\'auteur peut modifier.', ephemeral:true }); if(!i.customId.startsWith('tempvoc:')&&i.customId!==id1) return; const val=i.values[0]; await i.deferUpdate(); if(state.step==='start'){ if(val==='add'){ state.step='pick_voice'; await sent.edit({ embeds:[embedPickVoice()], components:[menuVoices(id1)] }); } else { state.step='delete_voice'; await sent.edit({ embeds:[new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Sélectionne un salon à supprimer').setColor(0xFF0000).setFooter({ text:'ζ͜͡Nexus Support' })], components:[menuVoices(id1)] }); } return; } if(state.step==='pick_voice'){ state.voiceChannelId=val; state.step='pick_category'; await sent.edit({ embeds:[new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Choisissez la catégorie des tickets').setColor(0xFF0000).setFooter({ text:'ζ͜͡Nexus Support' })], components:[menuCategories(id1)] }); return; } if(state.step==='pick_category'){ state.categoryId=val; state.step='ask_name'; const name=await askName(); if(!name) return; state.namePattern=name.replace(/<user>/g,'<user>'); // persist settings
  const cfg = getGuildConfig(msg.guild.id); cfg.settings.tempvoc = { hubId: state.voiceChannelId, categoryId: state.categoryId, namePattern: state.namePattern }; saveGuildConfig(msg.guild.id, cfg); state.step='summary'; await sent.edit({ embeds:[embedSummary()], components:[] }); return; } }); });
-defineCommand('twitch', async (msg) => { await msg.channel.send('Twitch en cours d\'implémentation.'); });
+defineCommand('twitch', async (msg) => { 
+    if (!requireOwner(msg)) return;
+    
+    // Charger la configuration Twitch du serveur
+    const cfg = getGuildConfig(msg.guild.id);
+    if (!cfg.settings.twitch) {
+        cfg.settings.twitch = {
+            enabled: false,
+            channelId: null,
+            pingRoleId: null
+        };
+        saveGuildConfig(msg.guild.id, cfg);
+    }
+    
+    const twitchConfig = cfg.settings.twitch;
+    
+    function buildTwitchEmbed() {
+        const channel = twitchConfig.channelId ? msg.guild.channels.cache.get(twitchConfig.channelId) : null;
+        const pingRole = twitchConfig.pingRoleId ? msg.guild.roles.cache.get(twitchConfig.pingRoleId) : null;
+        
+        return new EmbedBuilder()
+            .setTitle('Alerte Twitch')
+            .setColor(0xFF0000)
+            .addFields(
+                { name: 'Alerte Activé', value: twitchConfig.enabled ? '🔴' : '⚫', inline: true },
+                { name: 'Salon de l\'alerte', value: channel ? channel.toString() : 'Aucun', inline: true },
+                { name: 'Rôle ping lors de l\'alerte', value: pingRole ? pingRole.toString() : 'Aucun', inline: true }
+            )
+            .setFooter({ text: 'ζ͜͡Nexus Support' });
+    }
+    
+    function buildTwitchMenu(customId) {
+        return new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(customId)
+                .setPlaceholder('Modifier les paramètres Twitch')
+                .addOptions(
+                    { label: 'Modifier le salon d\'alerte', value: 'channel' },
+                    { label: 'Activer/Désactiver l\'alerte', value: 'toggle' },
+                    { label: 'Modifier le rôle de ping', value: 'ping_role' }
+                )
+        );
+    }
+    
+    async function ask(question) {
+        const q = await msg.channel.send(question);
+        const filter = (m) => m.author.id === msg.author.id && m.channelId === msg.channelId;
+        const collected = await msg.channel.awaitMessages({ filter, max: 1, time: 60_000 });
+        const answer = collected.first();
+        if (!answer) { 
+            try { await q.delete().catch(()=>{}); } catch {} 
+            return null; 
+        }
+        const value = answer.content.trim();
+        try { await answer.delete().catch(()=>{}); } catch {}
+        try { await q.delete().catch(()=>{}); } catch {}
+        return value;
+    }
+    
+    const menuId = `twitch_menu:${msg.id}:${Date.now()}`;
+    const sent = await msg.channel.send({ 
+        embeds: [buildTwitchEmbed()], 
+        components: [buildTwitchMenu(menuId)] 
+    });
+    
+    const collector = sent.createMessageComponentCollector({ time: 10 * 60 * 1000 });
+    collector.on('collect', async (i) => {
+        if (i.user.id !== msg.author.id) return i.reply({ content: 'Seul l\'auteur peut modifier ces paramètres.', ephemeral: true });
+        if (i.customId !== menuId) return;
+        
+        const choice = i.values[0];
+        await i.deferUpdate();
+        
+        if (choice === 'channel') {
+            const value = await ask('Mentionne le salon où envoyer les alertes Twitch :');
+            if (!value) return;
+            
+            const channel = msg.mentions.channels.first() || msg.guild.channels.cache.get(value.replace(/[^0-9]/g, ''));
+            if (!channel) {
+                await msg.channel.send('Salon introuvable.');
+                return;
+            }
+            
+            twitchConfig.channelId = channel.id;
+            saveGuildConfig(msg.guild.id, cfg);
+            await msg.channel.send(`Salon d'alerte Twitch défini sur ${channel}`);
+            
+        } else if (choice === 'toggle') {
+            twitchConfig.enabled = !twitchConfig.enabled;
+            saveGuildConfig(msg.guild.id, cfg);
+            await msg.channel.send(`Alerte Twitch ${twitchConfig.enabled ? 'activée' : 'désactivée'}`);
+            
+        } else if (choice === 'ping_role') {
+            const value = await ask('Mentionne le rôle à ping lors des alertes Twitch (ou "aucun" pour désactiver) :');
+            if (!value) return;
+            
+            if (value.toLowerCase() === 'aucun') {
+                twitchConfig.pingRoleId = null;
+                saveGuildConfig(msg.guild.id, cfg);
+                await msg.channel.send('Rôle de ping Twitch supprimé.');
+            } else {
+                const role = msg.mentions.roles.first() || msg.guild.roles.cache.get(value.replace(/[^0-9]/g, ''));
+                if (!role) {
+                    await msg.channel.send('Rôle introuvable.');
+                    return;
+                }
+                
+                twitchConfig.pingRoleId = role.id;
+                saveGuildConfig(msg.guild.id, cfg);
+                await msg.channel.send(`Rôle de ping Twitch défini sur ${role}`);
+            }
+        }
+        
+        // Mettre à jour l'embed
+        try {
+            await sent.edit({ embeds: [buildTwitchEmbed()] });
+        } catch {}
+    });
+});
 defineCommand('soutien', async (msg) => { await msg.channel.send('Soutien en cours d\'implémentation.'); });
 
 // Message automod enforcement
