@@ -1122,7 +1122,7 @@ defineCommand('setprefix', async (msg) => {
     if (!newPrefix) return void msg.channel.send('Usage: +setprefix <prefix>');
     process.env.CHILD_PREFIX = newPrefix;
     const cfg = getGuildConfig(msg.guild.id); cfg.prefix = newPrefix; saveGuildConfig(msg.guild.id, cfg);
-    return void msg.channel.send(`Préfixe mis à jour: ${newPrefix}`);
+    return void msg.channel.send(`Le nouveau prefix du bot est ${newPrefix}`);
 });
 
 // Sécurité: quitter automatiquement les serveurs non autorisés
