@@ -2937,8 +2937,18 @@ defineCommand('ticket settings', async (msg) => {
 });
 defineCommand('claim', async (msg) => { await msg.channel.send(`Le ticket a été claim par ${msg.author}`); });
 defineCommand('add', async (msg) => { 
-    const member = msg.mentions.members.first();
-    if (!member) return void msg.channel.send('Usage: +add @membre');
+    const mention = msg.mentions.members.first();
+    const idArg = msg.content.split(/\s+/)[1];
+    
+    let member = mention;
+    if (!member && idArg) {
+        const userId = idArg.replace(/[^0-9]/g, '');
+        if (userId) {
+            member = await msg.guild.members.fetch(userId).catch(() => null);
+        }
+    }
+    
+    if (!member) return void msg.channel.send('Usage: +add @membre ou +add <ID>');
     
     // Vérifier que c'est un ticket
     const channel = msg.channel;
@@ -2964,8 +2974,18 @@ defineCommand('add', async (msg) => {
 });
 
 defineCommand('del', async (msg) => { 
-    const member = msg.mentions.members.first();
-    if (!member) return void msg.channel.send('Usage: +del @membre');
+    const mention = msg.mentions.members.first();
+    const idArg = msg.content.split(/\s+/)[1];
+    
+    let member = mention;
+    if (!member && idArg) {
+        const userId = idArg.replace(/[^0-9]/g, '');
+        if (userId) {
+            member = await msg.guild.members.fetch(userId).catch(() => null);
+        }
+    }
+    
+    if (!member) return void msg.channel.send('Usage: +del @membre ou +del <ID>');
     
     // Vérifier que c'est un ticket
     const channel = msg.channel;
