@@ -2936,8 +2936,55 @@ defineCommand('ticket settings', async (msg) => {
     });
 });
 defineCommand('claim', async (msg) => { await msg.channel.send(`Le ticket a été claim par ${msg.author}`); });
-defineCommand('add', async (msg) => { await msg.channel.send('Ajout au ticket en cours d\'implémentation.'); });
-defineCommand('del', async (msg) => { await msg.channel.send('Retrait du ticket en cours d\'implémentation.'); });
+defineCommand('add', async (msg) => { 
+    const member = msg.mentions.members.first();
+    if (!member) return void msg.channel.send('Usage: +add @membre');
+    
+    // Vérifier que c'est un ticket
+    const channel = msg.channel;
+    const isTicket = channel.name.toLowerCase().includes('ticket') || 
+                    (channel.parent && channel.parent.name.toLowerCase().includes('ticket')) ||
+                    channel.name.toLowerCase().includes('support') ||
+                    (channel.parent && channel.parent.name.toLowerCase().includes('support'));
+    
+    if (!isTicket) {
+        return void msg.channel.send('Cette commande ne peut être utilisée que dans un ticket.');
+    }
+    
+    try {
+        await channel.permissionOverwrites.create(member, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true
+        });
+        await msg.channel.send(`${member.user.username} a bien été ajouté au ticket`);
+    } catch (error) {
+        await msg.channel.send('Impossible d\'ajouter ce membre au ticket.');
+    }
+});
+
+defineCommand('del', async (msg) => { 
+    const member = msg.mentions.members.first();
+    if (!member) return void msg.channel.send('Usage: +del @membre');
+    
+    // Vérifier que c'est un ticket
+    const channel = msg.channel;
+    const isTicket = channel.name.toLowerCase().includes('ticket') || 
+                    (channel.parent && channel.parent.name.toLowerCase().includes('ticket')) ||
+                    channel.name.toLowerCase().includes('support') ||
+                    (channel.parent && channel.parent.name.toLowerCase().includes('support'));
+    
+    if (!isTicket) {
+        return void msg.channel.send('Cette commande ne peut être utilisée que dans un ticket.');
+    }
+    
+    try {
+        await channel.permissionOverwrites.delete(member);
+        await msg.channel.send(`${member.user.username} a bien été supprimé du ticket`);
+    } catch (error) {
+        await msg.channel.send('Impossible de supprimer ce membre du ticket.');
+    }
+});
 defineCommand('close', async (msg) => { await msg.channel.send('Fermeture du ticket en cours d\'implémentation.'); });
 defineCommand('tempvoc', async (msg) => { if (!requireOwner(msg)) return; const state = { step: 'start', voiceChannelId: null, categoryId: null, namePattern: '<user>.dpz' }; function embedStart(){ return new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Choisissez une action dans le menu ci-dessous.').setColor(0xFF0000).setFooter({ text: 'ζ͜͡Nexus Support' }); } function embedPickVoice(){ return new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Veuillez choisir un salon vocal').setColor(0xFF0000).setFooter({ text: 'ζ͜͡Nexus Support' }); } function embedSummary(){ const ch = state.voiceChannelId ? (msg.guild.channels.cache.get(state.voiceChannelId)||null) : null; const cat = state.categoryId ? (msg.guild.channels.cache.get(state.categoryId)||null) : null; return new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setColor(0xFF0000).setDescription(['Vocal 1',`Salon: ${ch?ch.toString():'Aucun'}`,`Catégorie: ${cat?('#'+cat.name):'Aucun'}`,state.namePattern].join('\n')).setFooter({ text: 'ζ͜͡Nexus Support' }); } function menuStart(id){ return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('Sélectionner').addOptions({ label: 'Ajouter un salon', value: 'add' },{ label: 'Supprimer un salon', value: 'del' })); } function menuVoices(id){ const opts = []; for (const ch of msg.guild.channels.cache.values()){ if (ch.type===2) opts.push({ label: ch.name, value: ch.id }); } return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('Choisir un salon vocal').addOptions(opts.slice(0,25))); } function menuCategories(id){ const opts = []; for (const ch of msg.guild.channels.cache.values()){ if (ch.type===4) opts.push({ label: ch.name, value: ch.id }); } return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(id).setPlaceholder('Choisir une catégorie').addOptions(opts.slice(0,25))); } async function askName(){ const q = await msg.channel.send('Quel sera le nom des vocaux du serveur ? (<user> sera remplacé par le pseudo)'); const filter=(m)=>m.author.id===msg.author.id&&m.channelId===msg.channelId; const col=await msg.channel.awaitMessages({ filter, max:1, time:60000 }); const a=col.first(); if(!a){ try{await q.delete().catch(()=>{});}catch{} return null;} const val=a.content.trim(); try{await a.delete().catch(()=>{});}catch{} try{await q.delete().catch(()=>{});}catch{} return val; } const id1=`tempvoc:${msg.id}:${Date.now()}`; let sent=await msg.channel.send({ embeds:[embedStart()], components:[menuStart(id1)] }); const col=sent.createMessageComponentCollector({ time:10*60*1000 }); col.on('collect', async (i)=>{ if(i.user.id!==msg.author.id) return i.reply({ content:'Seul l\'auteur peut modifier.', ephemeral:true }); if(!i.customId.startsWith('tempvoc:')&&i.customId!==id1) return; const val=i.values[0]; await i.deferUpdate(); if(state.step==='start'){ if(val==='add'){ state.step='pick_voice'; await sent.edit({ embeds:[embedPickVoice()], components:[menuVoices(id1)] }); } else { state.step='delete_voice'; await sent.edit({ embeds:[new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Sélectionne un salon à supprimer').setColor(0xFF0000).setFooter({ text:'ζ͜͡Nexus Support' })], components:[menuVoices(id1)] }); } return; } if(state.step==='pick_voice'){ state.voiceChannelId=val; state.step='pick_category'; await sent.edit({ embeds:[new EmbedBuilder().setTitle('Paramètres des Vocaux Temporaires').setDescription('Choisissez la catégorie des tickets').setColor(0xFF0000).setFooter({ text:'ζ͜͡Nexus Support' })], components:[menuCategories(id1)] }); return; } if(state.step==='pick_category'){ state.categoryId=val; state.step='ask_name'; const name=await askName(); if(!name) return; state.namePattern=name.replace(/<user>/g,'<user>'); // persist settings
  const cfg = getGuildConfig(msg.guild.id); cfg.settings.tempvoc = { hubId: state.voiceChannelId, categoryId: state.categoryId, namePattern: state.namePattern }; saveGuildConfig(msg.guild.id, cfg); state.step='summary'; await sent.edit({ embeds:[embedSummary()], components:[] }); return; } }); });
