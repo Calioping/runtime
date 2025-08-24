@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, Partials, ActivityType, PermissionsBitField, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
+try { require('dotenv').config(); } catch (_) {}
 
 const TOKEN = process.env.CHILD_TOKEN;
 const PREFIX = process.env.CHILD_PREFIX || '+';
@@ -10,6 +10,7 @@ const BOT_ID = process.env.CHILD_BOT_ID || 'bot';
 const PRESET_PRESENCE = process.env.CHILD_PRESENCE || '';
 const PRESET_ACTIVITY_TYPE = process.env.CHILD_ACTIVITY_TYPE || '';
 const PRESET_ACTIVITY_TEXT = process.env.CHILD_ACTIVITY_TEXT || '';
+const PRESET_STREAM_URL = process.env.CHILD_STREAM_URL || 'https://twitch.tv/discord';
 
 if (!TOKEN) {
     console.error('No CHILD_TOKEN provided');
@@ -42,7 +43,8 @@ client.once('ready', () => {
     else if (t === 'listen' || t === 'listening') type = ActivityType.Listening;
     else if (t === 'compet' || t === 'competing') type = ActivityType.Competing;
     const name = PRESET_ACTIVITY_TEXT || `${PREFIX}help`;
-    client.user.setPresence({ activities: [{ type, name }], status });
+    const activity = (type === ActivityType.Streaming) ? { type, name, url: PRESET_STREAM_URL } : { type, name };
+    try { client.user.setPresence({ activities: [activity], status }); } catch (_) {}
     
     // Appliquer la sécurité des serveurs au démarrage
     setTimeout(enforceServerSecurity, 5000); // Délai de 5 secondes
